@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.abandoned_carts (
 CREATE TABLE IF NOT EXISTS public.diagnoses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cart_id UUID REFERENCES public.abandoned_carts(id),
+    session_id TEXT,
     cache_key TEXT NOT NULL,
     root_cause TEXT NOT NULL,
     confidence FLOAT NOT NULL,
@@ -19,8 +20,25 @@ CREATE TABLE IF NOT EXISTS public.diagnoses (
     fix TEXT NOT NULL,
     impact_inr INT NOT NULL,
     cached BOOLEAN NOT NULL DEFAULT FALSE,
+    source TEXT NOT NULL DEFAULT 'webhook',
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Create session_events table
+CREATE TABLE IF NOT EXISTS public.session_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    metadata JSONB,
+    page_url TEXT,
+    cart_value DECIMAL DEFAULT 0,
+    timestamp TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for session_events
+CREATE INDEX IF NOT EXISTS idx_session_events_session_id ON public.session_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_events_created_at_desc ON public.session_events(created_at DESC);
 
 -- Index for faster cache lookups
 CREATE INDEX IF NOT EXISTS idx_diagnoses_cache_key ON public.diagnoses(cache_key);

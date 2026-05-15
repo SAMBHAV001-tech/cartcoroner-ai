@@ -4,7 +4,7 @@ import hashlib
 import json
 import base64
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -69,6 +69,26 @@ class DiagnosisResponse(BaseModel):
 class RecoveryResponse(BaseModel):
     message: str
     channel_suggestion: str
+
+EventType = Literal["variant_changed", "checkout_step_reached", "page_revisit", "session_abandoned", "shipping_section_viewed"]
+
+class SessionEventCreate(BaseModel):
+    session_id: str
+    event_type: EventType
+    metadata: Optional[Dict[str, Any]] = None
+    page_url: Optional[str] = None
+    cart_value: float = 0.0
+    timestamp: str
+
+class DiagnosisRealResponse(BaseModel):
+    session_id: str
+    root_cause: str
+    merchant_label: str
+    confidence: float
+    evidence: List[str]
+    fix: str
+    impact_inr: int
+    events_analyzed: int
 
 # --- Helper Functions ---
 
@@ -469,7 +489,7 @@ async def get_diagnoses():
         return []
     try:
         response = supabase.table("diagnoses") \
-            .select("*") \
+            .select("*, abandoned_carts(*)") \
             .order("created_at", desc=True) \
             .limit(50) \
             .execute()
@@ -488,4 +508,191 @@ async def get_patterns():
     except Exception as e:
         print(f"Supabase error fetching patterns: {e}")
         raise HTTPException(status_code=500, detail="Database error. Ensure RPC 'get_patterns' is created.")
+
+@app.post("/session/event")
+async def receive_session_event(event: SessionEventCreate):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    try:
+        supabase.table("session_events").insert({
+            "session_id": event.session_id,
+            "event_type": event.event_type,
+            "metadata": event.metadata,
+            "page_url": event.page_url,
+            "cart_value": event.cart_value,
+            "timestamp": event.timestamp
+        }).execute()
+        return {"received": True}
+    except Exception as e:
+        print(f"Error saving session event: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save event")
+
+@app.get("/session/{session_id}/events")
+async def get_session_events(session_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    try:
+        response = supabase.table("session_events") \
+            .select("*") \
+            .eq("session_id", session_id) \
+            .order("timestamp", desc=False) \
+            .execute()
+        return response.data
+    except Exception as e:
+        print(f"Error fetching session events: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch events")
+
+@app.post("/session/{session_id}/diagnose", response_model=DiagnosisRealResponse)
+async def diagnose_session(session_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    try:
+        response = supabase.table("session_events") \
+            .select("*") \
+            .eq("session_id", session_id) \
+            .order("timestamp", desc=False) \
+            .execute()
+        events = response.data
+    except Exception as e:
+        print(f"Error fetching session events for diagnosis: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch events")
+        
+    if not events:
+        raise HTTPException(status_code=404, detail="No events found for this session")
+
+    # Analyze behavioral patterns
+    variant_changed_count = sum(1 for e in events if e["event_type"] == "variant_changed")
+    page_revisit_count = sum(1 for e in events if e["event_type"] == "page_revisit")
+    has_shipping_viewed = any(e["event_type"] == "shipping_section_viewed" for e in events)
+    
+    last_event = events[-1]
+    last_active_step = last_event["event_type"]
+    if last_event["event_type"] == "checkout_step_reached" and last_event.get("metadata"):
+        last_active_step = last_event["metadata"].get("step", last_active_step)
+        
+    is_abandoned = any(e["event_type"] == "session_abandoned" for e in events)
+    abandoned_at_payment = is_abandoned and last_active_step == "payment"
+    abandoned_at_shipping = is_abandoned and (last_active_step == "shipping" or has_shipping_viewed)
+    
+    try:
+        start_time = datetime.fromisoformat(events[0]["timestamp"].replace('Z', '+00:00'))
+        end_time = datetime.fromisoformat(events[-1]["timestamp"].replace('Z', '+00:00'))
+        total_duration_seconds = int((end_time - start_time).total_seconds())
+    except Exception:
+        total_duration_seconds = 0
+        
+    max_cart_value = max((float(e.get("cart_value") or 0) for e in events), default=0)
+    
+    # Build context string
+    context_lines = [
+        f"Total events: {len(events)}",
+        f"Session duration: {total_duration_seconds} seconds",
+        f"Max cart value: {max_cart_value}",
+        f"Last active step: {last_active_step}",
+        f"Variant changed count: {variant_changed_count}",
+        f"Page revisit count: {page_revisit_count}",
+        f"Shipping section viewed: {has_shipping_viewed}"
+    ]
+    context_str = "\n".join(context_lines)
+
+    MERCHANT_LABELS = {
+        "PRICE_SHOCK": "Budget Resistance",
+        "SHIPPING_SURPRISE": "Delivery Friction",
+        "TRUST_GAP": "Confidence Breakdown",
+        "VARIANT_CONFUSION": "Decision Paralysis",
+        "JUST_BROWSING": "Low Purchase Intent"
+    }
+
+    # Fallback / Rule-based determination
+    fallback_cause = "JUST_BROWSING"
+    if variant_changed_count > 2:
+        fallback_cause = "VARIANT_CONFUSION"
+    elif abandoned_at_payment:
+        fallback_cause = "PRICE_SHOCK"
+    elif abandoned_at_shipping or has_shipping_viewed:
+        fallback_cause = "SHIPPING_SURPRISE"
+    elif page_revisit_count > 1:
+        fallback_cause = "PRICE_SHOCK" # using existing labels
+        
+    # Call Groq
+    if groq_client:
+        system_prompt = "You are CartCoroner AI. Analyze REAL observed ecommerce behavioral telemetry and diagnose the most likely abandonment friction.\n\n" \
+                        "You must return ONLY JSON matching this schema:\n" \
+                        "{\n" \
+                        "  \"root_cause\": \"PRICE_SHOCK | SHIPPING_SURPRISE | TRUST_GAP | VARIANT_CONFUSION | JUST_BROWSING\",\n" \
+                        "  \"confidence\": float,\n" \
+                        "  \"evidence\": [string],\n" \
+                        "  \"fix\": string,\n" \
+                        "  \"impact_inr\": integer\n" \
+                        "}"
+        
+        user_prompt = f"Session Data:\n{context_str}\n\n" \
+                      f"Events summary:\n" + "\n".join([f"- {e['event_type']} at {e['timestamp']}" for e in events])
+                      
+        try:
+            completion = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=400,
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+            result_json = json.loads(completion.choices[0].message.content)
+            root_cause = result_json.get("root_cause", fallback_cause)
+            if root_cause not in MERCHANT_LABELS:
+                root_cause = fallback_cause
+            confidence = float(result_json.get("confidence", 0.7))
+            evidence = result_json.get("evidence", [])
+            fix = result_json.get("fix", "Review checkout flow.")
+            impact_inr = int(result_json.get("impact_inr", 0))
+        except Exception as e:
+            print(f"Groq failed for session diagnosis: {e}")
+            root_cause = fallback_cause
+            confidence = 0.6
+            evidence = ["Fallback activated. " + context_str.replace('\n', ', ')]
+            fix = "Review checkout flow based on telemetry."
+            impact_inr = int(max_cart_value * 0.1)
+    else:
+        root_cause = fallback_cause
+        confidence = 0.6
+        evidence = ["Fallback activated (No Groq). " + context_str.replace('\n', ', ')]
+        fix = "Review checkout flow based on telemetry."
+        impact_inr = int(max_cart_value * 0.1)
+
+    merchant_label = MERCHANT_LABELS.get(root_cause, "Low Purchase Intent")
+    
+    diagnosis_response = DiagnosisRealResponse(
+        session_id=session_id,
+        root_cause=root_cause,
+        merchant_label=merchant_label,
+        confidence=confidence,
+        evidence=evidence,
+        fix=fix,
+        impact_inr=impact_inr,
+        events_analyzed=len(events)
+    )
+
+    # Save to diagnoses table
+    try:
+        supabase.table("diagnoses").insert({
+            "session_id": session_id,
+            "cache_key": f"session_{session_id}",
+            "root_cause": root_cause,
+            "confidence": confidence,
+            "evidence": evidence,
+            "fix": fix,
+            "impact_inr": impact_inr,
+            "cached": False,
+            "source": "real_session"
+        }).execute()
+    except Exception as e:
+        print(f"Error saving session diagnosis to Supabase: {e}")
+
+    return diagnosis_response
 
