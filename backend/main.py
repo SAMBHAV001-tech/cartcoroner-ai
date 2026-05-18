@@ -509,6 +509,24 @@ async def get_patterns():
         print(f"Supabase error fetching patterns: {e}")
         raise HTTPException(status_code=500, detail="Database error. Ensure RPC 'get_patterns' is created.")
 
+@app.get("/session/latest")
+async def get_latest_session():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    try:
+        response = supabase.table("session_events") \
+            .select("session_id") \
+            .order("timestamp", desc=True) \
+            .limit(1) \
+            .execute()
+        if response.data and len(response.data) > 0:
+            return {"session_id": response.data[0]["session_id"]}
+        return {"session_id": None}
+    except Exception as e:
+        print(f"Error fetching latest session: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch latest session")
+
+
 @app.post("/session/event")
 async def receive_session_event(event: SessionEventCreate):
     if not supabase:

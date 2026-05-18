@@ -14,7 +14,7 @@ export function SessionTimeline({ steps }: SessionTimelineProps) {
       <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-transparent timeline-connector-enhanced" />
       
       <div className="space-y-4">
-        {steps.map((step, index) => (
+        {(steps || []).filter(Boolean).map((step, index) => (
           <div key={index} className="relative flex items-start gap-4 group">
             {/* Step indicator - Enhanced with glow */}
             <div className="relative z-10 flex-shrink-0 -ml-0.5">
@@ -85,8 +85,8 @@ export function SessionTimeline({ steps }: SessionTimelineProps) {
 
 // Compact version for smaller spaces
 export function SessionTimelineCompact({ steps }: SessionTimelineProps) {
-  const highlightedSteps = steps.filter(s => s.highlight);
-  const keySteps = highlightedSteps.length > 0 ? highlightedSteps : steps.slice(-3);
+  const highlightedSteps = (steps || []).filter(s => s && s.highlight);
+  const keySteps = highlightedSteps.length > 0 ? highlightedSteps : (steps || []).filter(Boolean).slice(-3);
   
   return (
     <div className="flex items-center gap-2 overflow-hidden">

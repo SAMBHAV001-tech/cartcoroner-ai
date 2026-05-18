@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/architecture.png" alt="CartCoroner Architecture" width="100%" />
+  <img src="docs/01-cartcoroner-live-forensic-dashboard.png" alt="CartCoroner Architecture" width="100%" />
 
   <h1>CartCoroner AI</h1>
   <p><strong>Behavioral Forensic Intelligence for Shopify.</strong></p>
@@ -38,24 +38,76 @@ CartCoroner doesn't guess. We track exact session events in real-time:
 
 ## 📸 Platform Overview
 
-### 1. The Behavioral Dashboard
-Our dark-futuristic command center for monitoring live storefront friction.
+### 1. CartCoroner Live Forensic Dashboard
+*(Main AI behavioral intelligence dashboard with live session monitoring)*
 <div align="center">
-  <img src="docs/dashboard.png" alt="CartCoroner Live Session Monitor" width="80%" />
+  <img src="docs/01-cartcoroner-live-forensic-dashboard.png" alt="CartCoroner Live Forensic Dashboard" width="100%" />
 </div>
 
-### 2. Live AI Diagnosis Flow
-Watch the Groq-powered AI engine perform a live autopsy on an abandoned session.
+### 2. Supabase Telemetry Event Pipeline
+*(Real-time session events stored from Shopify storefront tracking)*
 <div align="center">
-  <img src="docs/storefront-demo.png" alt="Storefront Demo" width="80%" />
+  <img src="docs/02-supabase-telemetry-event-pipeline.png" alt="Supabase Telemetry Event Pipeline" width="100%" />
 </div>
 
-### 3. Real-Time Telemetry Capture
-Raw behavioral events streaming from the Shopify storefront into our Supabase infrastructure.
+### 3. Shopify Storefront Product Interaction Tracking
+*(Variant selection and product behavior capture system)*
 <div align="center">
-  <img src="docs/supabase-events.png" alt="Supabase Telemetry Events" width="80%" />
-  <br>
-  <img src="docs/telemetry-flow.png" alt="Telemetry Flow Architecture" width="80%" />
+  <img src="docs/03-shopify-storefront-product-interaction-tracking.png" alt="Shopify Storefront Product Interaction Tracking" width="100%" />
+</div>
+
+### 4. Cart Drawer & Checkout Intent Monitoring
+*(Cart activity and checkout progression tracking)*
+<div align="center">
+  <img src="docs/04-cart-drawer-checkout-intent-monitoring.png" alt="Cart Drawer & Checkout Intent Monitoring" width="100%" />
+</div>
+
+### 5. Checkout Shipping Friction Detection
+*(Shipping-stage behavioral analytics and abandonment triggers)*
+<div align="center">
+  <img src="docs/05-checkout-shipping-friction-detection.png" alt="Checkout Shipping Friction Detection" width="100%" />
+</div>
+
+### 6. AI Diagnosis — Shipping Surprise Detection
+*(AI-generated forensic diagnosis for shipping-related abandonment)*
+<div align="center">
+  <img src="docs/06-ai-diagnosis-shipping-surprise-detection.png" alt="AI Diagnosis — Shipping Surprise Detection" width="100%" />
+</div>
+
+### 7. AI Diagnosis — Price Shock Detection
+*(Behavioral analysis for high-value cart hesitation)*
+<div align="center">
+  <img src="docs/07-ai-diagnosis-price-shock-detection.png" alt="AI Diagnosis — Price Shock Detection" width="100%" />
+</div>
+
+### 8. AI Diagnosis — Variant Confusion Detection
+*(Session replay showing repeated variant switching behavior)*
+<div align="center">
+  <img src="docs/08-ai-diagnosis-variant-confusion-detection.png" alt="AI Diagnosis — Variant Confusion Detection" width="100%" />
+</div>
+
+### 9. Behavioral Revenue Analytics & Root Cause Distribution
+*(Revenue leak analysis, abandonment trends, and category impact visualization)*
+<div align="center">
+  <img src="docs/09-behavioral-revenue-analytics-root-cause-distribution.png" alt="Behavioral Revenue Analytics & Root Cause Distribution" width="100%" />
+</div>
+
+### 10. Live Session Replay Timeline
+*(Chronological replay of real storefront behavioral telemetry)*
+<div align="center">
+  <img src="docs/10-live-session-replay-timeline.png" alt="Live Session Replay Timeline" width="100%" />
+</div>
+
+### 11. AI Intelligence Feed & Friction Heatmap
+*(Real-time AI insights, abandonment signals, and friction concentration analysis)*
+<div align="center">
+  <img src="docs/11-ai-intelligence-feed-friction-heatmap.png" alt="AI Intelligence Feed & Friction Heatmap" width="100%" />
+</div>
+
+### 12. CartCoroner System Architecture & Real-Time Behavioral Intelligence Pipeline
+*(End-to-end architecture showing Shopify telemetry capture, FastAPI processing, Supabase storage, Groq-powered AI diagnosis, and forensic dashboard visualization)*
+<div align="center">
+  <img src="docs/12-cartcoroner-system-architecture-pipeline.png" alt="CartCoroner System Architecture & Real-Time Behavioral Intelligence Pipeline" width="100%" />
 </div>
 
 ---

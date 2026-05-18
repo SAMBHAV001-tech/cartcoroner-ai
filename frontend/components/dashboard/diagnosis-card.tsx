@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Diagnosis, rootCauseConfig } from '@/lib/mock-data';
 import { SessionTimeline } from './session-timeline';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,8 @@ import {
   Sparkles,
   TrendingUp,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Clock,
   AlertTriangle,
   Shield,
@@ -80,6 +83,7 @@ function getEvidenceStrength(confidence: number): { label: string; color: string
 }
 
 export function DiagnosisCard({ diagnosis }: DiagnosisCardProps) {
+  const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
   const causeConfig = rootCauseConfig[diagnosis.rootCause];
   const riskLevel = getRiskLevel(diagnosis.confidence, diagnosis.cartValue);
   const evidenceStrength = getEvidenceStrength(diagnosis.confidence);
@@ -232,22 +236,43 @@ export function DiagnosisCard({ diagnosis }: DiagnosisCardProps) {
         </div>
       </div>
       
-      {/* Session Timeline - Signature Feature (Enhanced) */}
-      <div className="mb-4 p-3 rounded-lg bg-muted/30 border border-border/50 relative overflow-hidden">
+      {/* Session Timeline - Signature Feature (Collapsible) */}
+      <div className="mb-4 rounded-lg bg-muted/30 border border-border/50 relative overflow-hidden transition-all duration-300">
         <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-        <div className="flex items-center justify-between mb-3">
+        
+        {/* Collapsible Header */}
+        <button 
+          onClick={() => setIsTimelineExpanded(!isTimelineExpanded)}
+          className="w-full flex items-center justify-between p-3 hover:bg-muted/40 transition-colors"
+        >
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary animate-intelligence-pulse" />
             <span className="text-xs font-semibold uppercase tracking-wider text-primary">
               Behavioral Session Timeline
             </span>
+            <span className="text-[10px] text-muted-foreground ml-2">
+              ({diagnosis.sessionTimeline?.length || 0} events)
+            </span>
           </div>
-          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-[9px] font-medium text-primary">LIVE ANALYSIS</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-[9px] font-medium text-primary hidden sm:inline-block">LIVE ANALYSIS</span>
+            </div>
+            {isTimelineExpanded ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
           </div>
-        </div>
-        <SessionTimeline steps={diagnosis.sessionTimeline} />
+        </button>
+
+        {/* Collapsible Content */}
+        {isTimelineExpanded && (
+          <div className="p-3 pt-0 border-t border-border/30 mt-1 animate-in slide-in-from-top-2 fade-in duration-200">
+            <SessionTimeline steps={diagnosis.sessionTimeline} />
+          </div>
+        )}
       </div>
       
       {/* Behavioral Evidence */}
