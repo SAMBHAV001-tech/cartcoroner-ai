@@ -35,15 +35,23 @@ app.add_middleware(
 # Initialize Supabase
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✓ Supabase connected")
+    except Exception as e:
+        print(f"⚠ Supabase init failed (running without DB): {e}")
 
 # Initialize Groq
 groq_client = None
 if GROQ_API_KEY:
-    groq_client = OpenAI(
-        base_url="https://api.groq.com/openai/v1",
-        api_key=GROQ_API_KEY
-    )
+    try:
+        groq_client = OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=GROQ_API_KEY
+        )
+        print("✓ Groq client initialized")
+    except Exception as e:
+        print(f"⚠ Groq init failed (running without AI): {e}")
 
 # --- Pydantic Models ---
 
@@ -340,7 +348,11 @@ Behavioral signals observed:
 async def health_check():
     return {
         "status": "ok",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "services": {
+            "supabase": "connected" if supabase else "unavailable",
+            "groq": "connected" if groq_client else "unavailable",
+        }
     }
 
 @app.post("/webhook/shopify")
