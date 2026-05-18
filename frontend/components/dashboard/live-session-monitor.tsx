@@ -104,7 +104,7 @@ export function LiveSessionMonitor() {
           setFullTimeline(mapEventsToTimeline(mockEvents));
         }
       }
-    }, 5000);
+    }, 1500); // reduced from 5000ms — show content faster
 
     return () => {
       isMounted = false;

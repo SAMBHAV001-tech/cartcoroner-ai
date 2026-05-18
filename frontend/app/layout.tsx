@@ -5,11 +5,15 @@ import './globals.css'
 
 const inter = Inter({ 
   subsets: ["latin"],
-  variable: "--font-inter"
+  variable: "--font-inter",
+  display: "swap",
+  preload: true,
 });
 const geistMono = Geist_Mono({ 
   subsets: ["latin"],
-  variable: "--font-geist-mono"
+  variable: "--font-geist-mono",
+  display: "swap",
+  preload: false, // secondary font, don't block on it
 });
 
 export const metadata: Metadata = {

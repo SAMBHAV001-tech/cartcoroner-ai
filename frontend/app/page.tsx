@@ -24,33 +24,14 @@ import {
   Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { fetchDiagnoses } from '@/lib/api';
 
 import { DashboardFooter } from '@/components/dashboard/footer';
 
-export const dynamic = 'force-dynamic';
-
-export default async function Dashboard(props: {
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
-  const searchParams = props.searchParams ? await props.searchParams : {};
-  const q = typeof searchParams.q === 'string' ? searchParams.q.toLowerCase() : '';
-
+export default function Dashboard() {
   const metricSeverities: ('normal' | 'warning' | 'critical')[] = ['critical', 'warning', 'normal', 'normal'];
   
-  const liveDiagnoses = await fetchDiagnoses();
-  const baseDiagnoses = liveDiagnoses && liveDiagnoses.length > 0 ? liveDiagnoses : mockDiagnoses;
-  
-  const displayDiagnoses = q 
-    ? baseDiagnoses.filter(d => {
-        const email = d.customerEmail || '';
-        const cause = d.rootCause || '';
-        const category = d.productCategory || '';
-        return email.toLowerCase().includes(q) || 
-               cause.toLowerCase().includes(q) ||
-               category.toLowerCase().includes(q);
-      })
-    : baseDiagnoses;
+  // Use mock data immediately — LiveDiagnosisFeed will fetch live data on the client
+  const displayDiagnoses = mockDiagnoses;
   
   return (
     <div className="min-h-screen bg-background">

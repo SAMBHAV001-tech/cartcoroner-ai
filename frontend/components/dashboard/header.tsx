@@ -10,22 +10,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { toast } from 'sonner';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
-export function DashboardHeader() {
-  const [mounted, setMounted] = useState(false);
-  
+// Isolated to its own component so useSearchParams doesn't block the whole header
+function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
   const [searchValue, setSearchValue] = useState(searchParams.get('q')?.toString() || '');
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value;
@@ -45,6 +39,34 @@ export function DashboardHeader() {
     params.delete('q');
     router.replace(`${pathname}?${params.toString()}`);
   };
+
+  return (
+    <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 w-64 hover:border-primary/30 transition-colors">
+      <Search className="w-4 h-4 text-muted-foreground" />
+      <input 
+        type="text"
+        placeholder="Search diagnoses..."
+        onChange={handleSearch}
+        value={searchValue}
+        className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-full"
+      />
+      {searchValue ? (
+        <button onClick={clearSearch} className="p-0.5 hover:bg-muted rounded-full">
+          <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+        </button>
+      ) : (
+        <kbd className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">⌘K</kbd>
+      )}
+    </div>
+  );
+}
+
+export function DashboardHeader() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
@@ -103,24 +125,15 @@ export function DashboardHeader() {
           
           {/* Right Side */}
           <div className="flex items-center gap-3">
-            {/* Search */}
-            <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 w-64 hover:border-primary/30 transition-colors">
-              <Search className="w-4 h-4 text-muted-foreground" />
-              <input 
-                type="text"
-                placeholder="Search diagnoses..."
-                onChange={handleSearch}
-                value={searchValue}
-                className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-full"
-              />
-              {searchValue ? (
-                <button onClick={clearSearch} className="p-0.5 hover:bg-muted rounded-full">
-                  <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
-                </button>
-              ) : (
-                <kbd className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">⌘K</kbd>
-              )}
-            </div>
+            {/* Search — wrapped in Suspense so useSearchParams doesn't block render */}
+            <Suspense fallback={
+              <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 w-64">
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground/50">Search diagnoses...</span>
+              </div>
+            }>
+              <HeaderSearch />
+            </Suspense>
             
             {/* AI Status */}
             <AIStatusIndicator analyzing={true} />
