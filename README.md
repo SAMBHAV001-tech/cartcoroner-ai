@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/01-cartcoroner-live-forensic-dashboard.png" alt="CartCoroner Architecture" width="100%" />
+  <img src="docs/01-cartcoroner-live-forensic-dashboard.png" alt="CartCoroner Live Forensic Dashboard" width="100%" />
 
   <h1>CartCoroner AI</h1>
   <p><strong>Behavioral Forensic Intelligence for Shopify.</strong></p>
@@ -8,13 +8,37 @@
     <em>Most analytics tools explain WHAT happened.<br>
     CartCoroner explains WHY it happened.</em>
   </p>
+
+  <p>
+    <a href="https://cartcoroner-ai.vercel.app/"><img src="https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel" alt="Live Demo" /></a>
+    &nbsp;
+    <a href="https://samd444-cartcoroner-backend.hf.space/docs"><img src="https://img.shields.io/badge/API%20Docs-Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" alt="API Docs" /></a>
+    &nbsp;
+    <a href="https://samd444-cartcoroner-backend.hf.space/health"><img src="https://img.shields.io/badge/Backend-Live-00C851?style=for-the-badge&logo=python&logoColor=white" alt="Backend Live" /></a>
+    &nbsp;
+    <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="MIT License" />
+  </p>
 </div>
+
+---
+
+## 🌐 Live Deployment
+
+| Service | URL |
+|---------|-----|
+| 🖥️ **Live Dashboard** | [cartcoroner-ai.vercel.app](https://cartcoroner-ai.vercel.app/) |
+| 🔀 **Preview Branch** | [cartcoroner-ai-git-main-sambhav-das-projects.vercel.app](https://cartcoroner-ai-git-main-sambhav-das-projects.vercel.app/) |
+| ⚙️ **Backend API** | [samd444-cartcoroner-backend.hf.space](https://samd444-cartcoroner-backend.hf.space) |
+| 📖 **Swagger / API Docs** | [samd444-cartcoroner-backend.hf.space/docs](https://samd444-cartcoroner-backend.hf.space/docs) |
+| ❤️ **Health Check** | [samd444-cartcoroner-backend.hf.space/health](https://samd444-cartcoroner-backend.hf.space/health) |
+
+> Cloud deployment includes uptime monitoring to maintain stable public accessibility during demonstrations and evaluations.
 
 ---
 
 ## 🛑 The Problem: Traditional Analytics Are Blind
 
-Most cart recovery tools treat abandonment as the problem. **CartCoroner treats abandonment as the symptom.** 
+Most cart recovery tools treat abandonment as the problem. **CartCoroner treats abandonment as the symptom.**
 
 Traditional analytics tell you that a user dropped off at the checkout step. They don't tell you if the user hesitated on shipping costs, got paralyzed by variant choices, or lost trust at the payment gateway. Sending a generic 10% discount to all abandoned carts is guessing, not intelligence.
 
@@ -24,19 +48,39 @@ Traditional analytics tell you that a user dropped off at the checkout step. The
 
 **This system captures REAL behavioral telemetry from Shopify storefront sessions.** By injecting a lightweight tracking layer into your Shopify storefront, we monitor micro-interactions (hesitation, variant toggling, cart adjustments) in real-time. When a session is abandoned, our AI reasoning engine performs an "autopsy" on the session telemetry to diagnose the exact root cause of friction.
 
-## 📡 Live Telemetry Explanation
+---
 
-CartCoroner doesn't guess. We track exact session events in real-time:
-- `variant_changed`: Tracking decision paralysis and product exploration.
-- `checkout_step_reached`: Understanding exactly where the funnel breaks.
-- `page_revisit`: Identifying comparison shopping or confusion.
-- `session_abandoned`: The exact moment of failure.
+## ☁️ Deployment Architecture
 
-[Read the full Telemetry Explanation here](telemetry_explanation.md)
+CartCoroner is a fully cloud-deployed platform with no local dependencies required to experience the live system.
+
+```
+Shopify Storefront  (theme.liquid tracker)
+        ↓
+  Behavioral Telemetry JS  (variant, shipping, revisit, abandon events)
+        ↓
+  FastAPI Backend  ── Hugging Face Spaces (Docker, Python 3.11)
+        ↓
+  Supabase PostgreSQL  ── Cloud database (session_events + diagnoses tables)
+        ↓
+  Groq AI Engine  ── LLaMA 3.3 70B (behavioral root cause reasoning)
+        ↓
+  Next.js Dashboard  ── Vercel (real-time forensic intelligence UI)
+```
+
+### Why this architecture?
+
+| Decision | Rationale |
+|----------|-----------|
+| **Vercel** for frontend | Zero-config deployment, edge CDN, instant previews per branch |
+| **Hugging Face Spaces** for backend | Free Docker hosting with GPU-adjacent infra, no cold-start penalty |
+| **Supabase** for database | Managed PostgreSQL with real-time capabilities and REST API |
+| **Groq** for AI inference | Fastest LLM inference available — LLaMA 3.3 70B at production latency |
+| **Shopify Liquid** for tracking | Native storefront integration, no third-party permissions needed |
 
 ---
 
-## 📸 Platform Overview
+## 📸 Platform Gallery
 
 ### 1. CartCoroner Live Forensic Dashboard
 *(Main AI behavioral intelligence dashboard with live session monitoring)*
@@ -105,90 +149,163 @@ CartCoroner doesn't guess. We track exact session events in real-time:
 </div>
 
 ### 12. CartCoroner System Architecture & Real-Time Behavioral Intelligence Pipeline
-*(End-to-end architecture showing Shopify telemetry capture, FastAPI processing, Supabase storage, Groq-powered AI diagnosis, and forensic dashboard visualization)*
+*(End-to-end architecture: Shopify telemetry capture → FastAPI → Supabase → Groq → Dashboard)*
 <div align="center">
-  <img src="docs/12-cartcoroner-system-architecture-pipeline.png" alt="CartCoroner System Architecture & Real-Time Behavioral Intelligence Pipeline" width="100%" />
+  <img src="docs/12-cartcoroner-system-architecture-pipeline.png" alt="CartCoroner System Architecture" width="100%" />
 </div>
 
 ---
 
-## 🏗️ System Architecture
+## 📡 Live Telemetry Pipeline
 
-Our architecture bridges real-time storefront telemetry with forensic AI reasoning:
+CartCoroner doesn't simulate. It captures real behavioral telemetry from Shopify sessions:
 
-**Shopify Storefront** (Liquid/JS)
-↓ *Behavior Tracker JS captures live events*
-**FastAPI Backend** (Python)
-↓ *Ingests and normalizes event streams*
-**Supabase Telemetry Storage** (PostgreSQL)
-↓ *Persists session timelines*
-**Groq AI Reasoning Engine** (Llama 3)
-↓ *Diagnoses root causes and generates recovery strategies*
-**Behavioral Intelligence Dashboard** (Next.js)
+| Event | What It Captures |
+|-------|-----------------|
+| `variant_changed` | Decision paralysis — size and color switching behavior |
+| `checkout_step_reached` | Exact funnel breakpoint identification |
+| `shipping_section_viewed` | Delivery cost friction detection |
+| `page_revisit` | Comparison shopping and hesitation signals |
+| `session_abandoned` | The exact moment and context of failure |
+
+Each event is transmitted asynchronously to the FastAPI backend, persisted in Supabase, and made immediately available for AI diagnosis.
+
+---
+
+## 🔌 API Reference
+
+Full interactive documentation available at **[samd444-cartcoroner-backend.hf.space/docs](https://samd444-cartcoroner-backend.hf.space/docs)** — auto-generated by FastAPI's OpenAPI engine.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Service health + connection status |
+| `POST` | `/diagnose` | Submit cart payload for AI root cause diagnosis |
+| `POST` | `/recovery` | Generate personalized cart recovery message |
+| `GET` | `/diagnoses` | Retrieve latest 50 AI diagnoses |
+| `GET` | `/patterns` | Aggregate behavioral pattern analytics |
+| `POST` | `/webhook/shopify` | Receive Shopify abandonment webhooks |
+| `POST` | `/session/event` | Ingest real-time storefront telemetry event |
+| `GET` | `/session/latest` | Get most recent active session ID |
+| `GET` | `/session/{id}/events` | Full event timeline for a session |
+| `POST` | `/session/{id}/diagnose` | AI diagnosis from real session telemetry |
+
+### Root Cause Categories
+
+| Code | Merchant Label | Trigger Pattern |
+|------|---------------|-----------------|
+| `PRICE_SHOCK` | Budget Resistance | High cart value, payment-step drop-off |
+| `SHIPPING_SURPRISE` | Delivery Friction | Unexpected costs at shipping stage |
+| `TRUST_GAP` | Confidence Breakdown | Review/return-policy interactions before exit |
+| `VARIANT_CONFUSION` | Decision Paralysis | Repeated size/variant toggling |
+| `JUST_BROWSING` | Low Purchase Intent | Short session, low cart value |
+
+---
 
 ## ✨ Feature Highlights
 
-- **Real-Time Behavioral Telemetry**: Captures true user intent through storefront interactions.
-- **AI-Powered Forensic Diagnosis**: Groq-powered reasoning engine analyzes sessions to find friction.
-- **Root-Cause Intelligence**: Classifies abandonment into actionable categories (e.g., Price Shock, Trust Gap, Shipping Surprise).
-- **Targeted Recovery Strategies**: Generates highly specific, customized recovery recommendations based on exact behavior.
-- **Premium Live Session Dashboard**: Dark futuristic interface for real-time behavioral monitoring.
+- **Real-Time Behavioral Telemetry** — Captures true user intent through storefront micro-interactions
+- **AI-Powered Forensic Diagnosis** — Groq LLaMA 3.3 70B analyzes session behavioral patterns
+- **Root-Cause Classification** — Five evidence-based abandonment categories with confidence scoring
+- **Targeted Recovery Strategies** — Specific, actionable merchant recommendations per diagnosis
+- **Live Session Replay** — Chronological timeline of every storefront interaction
+- **Behavioral Revenue Analytics** — Weekly recovery opportunity quantified in INR
+
+---
 
 ## 🚀 How Judges Can Test CartCoroner
 
-Follow these steps to experience the complete forensic intelligence flow:
+### Option A — Live Cloud Demo (No Setup Required)
 
-1. **Open Storefront**: Navigate to the provided Shopify demo storefront as a real customer.
-2. **Browse Products**: Interact naturally with the products.
-3. **Trigger Behavioral Actions**: Toggle multiple variants rapidly, reach checkout, and revisit product pages.
-4. **Observe Telemetry Capture**: Close the tab to trigger a `session_abandoned` event. You can observe the raw telemetry data hitting our Supabase instance.
-5. **Open Dashboard**: Navigate to the CartCoroner Live Dashboard link.
-6. **Run Diagnosis**: Select your abandoned session from the Live Monitor and trigger the AI Diagnosis.
-7. **Observe AI Reasoning**: Watch as the AI breaks down your exact behavior and outputs a behavioral root cause (e.g., *Decision Paralysis*) alongside a tailored recovery strategy.
+1. **Open Dashboard** → [cartcoroner-ai.vercel.app](https://cartcoroner-ai.vercel.app/)
+2. **Observe Live Monitor** — The session monitor initializes and replays the latest behavioral session from Supabase
+3. **Trigger AI Demo** — Click any scenario button (Shipping Drop-off, Price Shock, Trust Issue, Variant Confusion) in the Behavioral Intelligence Feed
+4. **Watch AI Reasoning** — The Groq engine diagnoses the behavioral payload and returns a forensic report with evidence, root cause, and recovery recommendation
+5. **Check API** → [samd444-cartcoroner-backend.hf.space/docs](https://samd444-cartcoroner-backend.hf.space/docs)
 
-[See full Demo Script here](demo_script.md)
+### Option B — Real Storefront Telemetry Flow
 
-## 💻 Tech Stack
+1. Navigate to the Shopify demo storefront as a real customer
+2. Interact with products — toggle variants, reach checkout, revisit pages
+3. Close the tab to trigger `session_abandoned`
+4. Open the CartCoroner dashboard — your session appears live in the monitor
+5. Trigger AI Diagnosis — watch the behavioral autopsy run on your real session
 
-- **AI Reasoning**: Groq API (Llama 3 70B)
-- **Frontend Dashboard**: Next.js 14, Tailwind CSS, Lucide Icons
-- **Backend Service**: FastAPI (Python)
-- **Database**: Supabase (PostgreSQL)
-- **Storefront Tracking**: Vanilla JavaScript (Shopify theme.liquid)
+---
 
-## 🛠️ Setup Instructions
+## 🛠️ Local Development Setup
 
-### 1. Supabase Setup
-- Create a Supabase project.
-- Execute the SQL schema (found in `backend/sql/schema.sql` if applicable) to create the `session_events` table.
+### Prerequisites
+- Node.js 18+ and npm
+- Python 3.11+
+- Supabase account + Groq API key
 
-### 2. Backend (FastAPI)
+### Backend (FastAPI)
+
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env # Configure Supabase and Groq keys
-uvicorn main:app --reload
+cp .env.example .env          # Fill in GROQ_API_KEY, SUPABASE_URL, SUPABASE_KEY
+uvicorn main:app --reload --port 7860
+# API available at http://localhost:7860
+# Swagger docs at http://localhost:7860/docs
 ```
 
-### 3. Frontend (Next.js)
+### Frontend (Next.js)
+
 ```bash
 cd frontend
 npm install
 npm run dev
+# Dashboard at http://localhost:3000
 ```
 
-### 4. Shopify Storefront Tracking
-- Copy the tracking script (e.g., from `scripts/cartcoroner-tracker.liquid`) and place it before the `</body>` tag in your Shopify `theme.liquid`.
-- Ensure the tracker points to your running FastAPI backend URL.
+### Shopify Telemetry (Local Testing with ngrok)
+
+```bash
+# Expose local backend to Shopify's HTTPS requirement
+ngrok http 7860
+# Copy the ngrok HTTPS URL
+# Update tracker script endpoint in Shopify theme.liquid
+```
+
+### Environment Variables
+
+```env
+# backend/.env
+GROQ_API_KEY=your_groq_api_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_or_publishable_key
+SHOPIFY_WEBHOOK_SECRET=your_webhook_secret
+```
+
+---
+
+## 💻 Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **AI Reasoning** | Groq API — LLaMA 3.3 70B Versatile |
+| **Frontend** | Next.js 16, Tailwind CSS v4, Recharts, Lucide Icons |
+| **Backend** | FastAPI, Python 3.11, Uvicorn |
+| **Database** | Supabase (PostgreSQL) |
+| **Storefront Tracking** | Vanilla JavaScript (Shopify theme.liquid) |
+| **Frontend Hosting** | Vercel (Edge CDN) |
+| **Backend Hosting** | Hugging Face Spaces (Docker) |
+
+---
 
 ## 🗺️ Future Roadmap
 
-- **Predictive Abandonment Scoring**: Intervene *before* the customer leaves.
-- **Automated A/B Testing**: Dynamically test AI-generated recovery copy against live traffic.
-- **Heatmap Integration**: Overlay spatial interaction data onto session timelines.
-- **ESP Integrations**: Direct hooks into Klaviyo and Mailchimp for autonomous recovery deployment.
+- **Predictive Abandonment Scoring** — Intervene *before* the customer leaves
+- **Automated A/B Testing** — Dynamically test AI-generated recovery copy against live traffic
+- **Heatmap Integration** — Overlay spatial interaction data onto session timelines
+- **ESP Integrations** — Direct hooks into Klaviyo and Mailchimp for autonomous recovery deployment
+- **Multi-store Analytics** — Aggregate behavioral patterns across Shopify merchant portfolios
+
+---
 
 ## 👥 Team
 
@@ -196,8 +313,8 @@ Built for the **Kasparro Agentic Commerce Hackathon 2026**.
 
 ## 📄 License
 
-MIT License. See `LICENSE` for more details.
+MIT License. See `LICENSE` for details.
 
 ## ✉️ Contact
 
-For hackathon judging and inquiries, please reach out to the project maintainers through GitHub Issues or the provided hackathon submission channels.
+For hackathon judging and inquiries, reach out through GitHub Issues or the provided hackathon submission channels.
