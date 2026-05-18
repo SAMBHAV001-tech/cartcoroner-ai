@@ -6,7 +6,7 @@ colorTo: gray
 sdk: docker
 pinned: true
 license: mit
-short_description: FastAPI backend for CartCoroner AI — behavioral cart abandonment diagnostics powered by Groq LLaMA-3.3-70B and Supabase.
+short_description: AI-powered cart abandonment diagnostics via Groq + Supabase
 ---
 
 # CartCoroner AI — Backend API
