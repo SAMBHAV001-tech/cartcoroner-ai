@@ -224,3 +224,5 @@ Thumbs.db
 # Frontend / Next.js
 node_modules/
 .next/
+
+hf-deploy/
