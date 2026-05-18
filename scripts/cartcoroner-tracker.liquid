@@ -1,0 +1,293 @@
+<!-- CartCoroner AI Tracker Snippet -->
+<!-- Paste this right before the closing </body> tag in theme.liquid -->
+<script>
+(function() {
+  // Prevent multiple initializations
+  if (window.CartCoronerTracker) return;
+  window.CartCoronerTracker = 'initialized';
+
+  // --- CONFIGURATION ---
+  const CONFIG = {
+    API_URL: 'http://localhost:7860/session/event',
+    DEV_MODE: true, // Set to false in production to disable console.logs
+    INACTIVITY_TIMEOUT_MS: 5 * 60 * 1000 // 5 minutes
+  };
+
+  // --- STATE MANAGEMENT ---
+  function getOrCreateSessionId() {
+    let sid = localStorage.getItem('cc_session_id');
+    if (!sid) {
+      sid = 'cc_session_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('cc_session_id', sid);
+      localStorage.setItem('cc_session_start', Date.now().toString());
+    }
+    return sid;
+  }
+
+  const sessionId = getOrCreateSessionId();
+  let eventsCount = parseInt(localStorage.getItem('cc_events_count') || '0', 10);
+  let lastStep = localStorage.getItem('cc_last_step') || 'unknown';
+  let inactivityTimer = null;
+  
+  // --- UTILS ---
+  function log(...args) {
+    if (CONFIG.DEV_MODE) {
+      console.log('[CartCoroner AI]', ...args);
+    }
+  }
+
+  function sendEvent(eventType, payload) {
+    try {
+      eventsCount++;
+      localStorage.setItem('cc_events_count', eventsCount.toString());
+      
+      const event = {
+        session_id: sessionId,
+        event_type: eventType,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        payload: payload || {}
+      };
+
+      log(`Event triggered: ${eventType}`, event);
+
+      // Async fire-and-forget request
+      // keepalive: true ensures the request finishes even if the page unloads
+      fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(event),
+        keepalive: true
+      }).catch(err => {
+        log('Failed to send event:', err);
+      });
+    } catch (e) {
+      log('Error constructing event:', e);
+    }
+  }
+
+  // --- EVENT TRACKING MODULES ---
+
+  // 1. variant_changed
+  function trackVariantChanges() {
+    let currentVariantId = new URLSearchParams(window.location.search).get('variant') || 'default';
+    
+    // Listen for form changes (dropdowns, radios)
+    document.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!target) return;
+
+      // Shopify heuristics: identify variant selectors
+      const isVariantSelector = 
+        target.name === 'id' || 
+        target.name === 'options' ||
+        target.classList.contains('single-option-selector') ||
+        (target.closest && target.closest('form[action^="/cart/add"]'));
+
+      if (isVariantSelector) {
+        const newVariantId = target.value;
+        if (newVariantId && newVariantId !== currentVariantId) {
+          // Attempt to grab product ID from Shopify's global meta object if available
+          const productId = (window.meta && window.meta.product && window.meta.product.id) ? window.meta.product.id : 'unknown';
+          
+          sendEvent('variant_changed', {
+            from_variant: currentVariantId,
+            to_variant: newVariantId,
+            product_id: productId
+          });
+          currentVariantId = newVariantId;
+        }
+      }
+    });
+
+    // Also handle button-based variant selectors (swatches)
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target || !target.closest) return;
+      
+      const swatch = target.closest('.swatch-element, [data-variant-id]');
+      if (swatch) {
+        // Give the DOM a tiny bit of time to update the hidden select/input if needed
+        setTimeout(() => {
+          const form = swatch.closest('form');
+          if (form) {
+             const variantInput = form.querySelector('[name="id"]');
+             if (variantInput && variantInput.value !== currentVariantId) {
+                const productId = (window.meta && window.meta.product && window.meta.product.id) ? window.meta.product.id : 'unknown';
+                sendEvent('variant_changed', {
+                  from_variant: currentVariantId,
+                  to_variant: variantInput.value,
+                  product_id: productId
+                });
+                currentVariantId = variantInput.value;
+             }
+          }
+        }, 50);
+      }
+    });
+  }
+
+  // 2. shipping_section_viewed
+  function trackShippingView() {
+    let hoverStartTime = 0;
+    let isHovering = false;
+    let focusStartTime = 0;
+    let isFocused = false;
+
+    // Helper to check if element is related to shipping
+    function isShippingElement(el) {
+      if (!el || !el.getAttribute) return false;
+      const id = (el.getAttribute('id') || '').toLowerCase();
+      const cls = (el.getAttribute('class') || '').toLowerCase();
+      return id.includes('shipping') || id.includes('delivery') || cls.includes('shipping') || cls.includes('delivery');
+    }
+
+    document.addEventListener('mouseover', (e) => {
+      if (!e.target || !e.target.closest) return;
+      const target = e.target.closest('[id*="shipping"], [class*="shipping"], [id*="delivery"], [class*="delivery"]');
+      if (target && !isHovering) {
+        isHovering = true;
+        hoverStartTime = Date.now();
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      if (isHovering) {
+        // Ensure we are actually leaving the shipping area, not just moving between children
+        const target = e.target.closest ? e.target.closest('[id*="shipping"], [class*="shipping"], [id*="delivery"], [class*="delivery"]') : null;
+        const related = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[id*="shipping"], [class*="shipping"], [id*="delivery"], [class*="delivery"]') : null;
+        
+        if (target && target !== related) {
+          isHovering = false;
+          const duration = Date.now() - hoverStartTime;
+          if (duration > 500) { // Threshold to ignore quick pass-overs
+            sendEvent('shipping_section_viewed', { hover_duration_ms: duration });
+          }
+        }
+      }
+    });
+    
+    // Track focus for accessibility
+    document.addEventListener('focusin', (e) => {
+      if (isShippingElement(e.target)) {
+        isFocused = true;
+        focusStartTime = Date.now();
+      }
+    });
+    
+    document.addEventListener('focusout', (e) => {
+       if (isFocused) {
+          isFocused = false;
+          const duration = Date.now() - focusStartTime;
+          if (duration > 500) {
+            sendEvent('shipping_section_viewed', { hover_duration_ms: duration, type: 'focus' });
+          }
+       }
+    });
+  }
+
+  // 3. checkout_step_reached
+  function trackCheckoutStep() {
+    const path = window.location.pathname.toLowerCase();
+    let currentStep = 'other';
+    
+    if (path.includes('/cart')) {
+      currentStep = 'cart';
+    } else if (path.includes('/products/')) {
+      currentStep = 'product';
+    } else if (path.includes('/checkouts/') || path.includes('/checkout')) {
+      // Differentiate checkout steps using Shopify standard selectors if available
+      if (document.querySelector('.step[data-step="contact_information"]')) {
+        currentStep = 'checkout_information';
+      } else if (document.querySelector('.step[data-step="shipping_method"]')) {
+        currentStep = 'shipping';
+      } else if (document.querySelector('.step[data-step="payment_method"]')) {
+        currentStep = 'payment';
+      } else {
+        currentStep = 'checkout_general';
+      }
+    }
+
+    if (currentStep !== 'other') {
+      localStorage.setItem('cc_last_step', currentStep);
+      lastStep = currentStep;
+      sendEvent('checkout_step_reached', { step: currentStep });
+    }
+  }
+
+  // 4. page_revisit
+  function trackPageRevisit() {
+    const currentPage = window.location.pathname;
+    const previousPage = localStorage.getItem('cc_last_page');
+    
+    // Check if the user navigated back
+    const navigationEntries = performance.getEntriesByType('navigation');
+    const isBackNavigation = navigationEntries.length > 0 && navigationEntries[0].type === 'back_forward';
+
+    if (isBackNavigation && previousPage) {
+      sendEvent('page_revisit', {
+        from_page: previousPage,
+        to_page: currentPage
+      });
+    }
+
+    localStorage.setItem('cc_last_page', currentPage);
+  }
+
+  // 5. session_abandoned
+  function handleAbandonment(reason) {
+    const startTimeStr = localStorage.getItem('cc_session_start');
+    const startTime = startTimeStr ? parseInt(startTimeStr, 10) : Date.now();
+    const totalSessionSeconds = Math.floor((Date.now() - startTime) / 1000);
+
+    sendEvent('session_abandoned', {
+      reason: reason, // 'beforeunload' or 'inactivity'
+      last_step: lastStep,
+      total_session_seconds: totalSessionSeconds,
+      events_count: eventsCount
+    });
+  }
+
+  function setupAbandonmentTracking() {
+    // Detect page unload / tab close
+    window.addEventListener('beforeunload', () => {
+      handleAbandonment('beforeunload');
+    });
+
+    // Detect inactivity
+    function resetInactivity() {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        handleAbandonment('inactivity');
+      }, CONFIG.INACTIVITY_TIMEOUT_MS);
+    }
+
+    // Bind to user interactions to reset the inactivity timer
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    activityEvents.forEach(evt => {
+      document.addEventListener(evt, resetInactivity, { passive: true });
+    });
+
+    resetInactivity();
+  }
+
+  // --- INITIALIZATION ---
+  function init() {
+    log('Initializing...');
+    trackCheckoutStep();
+    trackPageRevisit();
+    trackVariantChanges();
+    trackShippingView();
+    setupAbandonmentTracking();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
