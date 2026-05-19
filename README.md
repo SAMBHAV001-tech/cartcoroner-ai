@@ -112,16 +112,16 @@ Shopify Storefront  (theme.liquid tracker)
   <img src="docs/05-checkout-shipping-friction-detection.png" alt="Checkout Shipping Friction Detection" width="100%" />
 </div>
 
-### 6. AI Diagnosis — Shipping Surprise Detection
-*(AI-generated forensic diagnosis for shipping-related abandonment)*
-<div align="center">
-  <img src="docs/06-ai-diagnosis-shipping-surprise-detection.png" alt="AI Diagnosis — Shipping Surprise Detection" width="100%" />
-</div>
-
-### 7. AI Diagnosis — Price Shock Detection
+### 6. AI Diagnosis — Price Shock Detection
 *(Behavioral analysis for high-value cart hesitation)*
 <div align="center">
-  <img src="docs/07-ai-diagnosis-price-shock-detection.png" alt="AI Diagnosis — Price Shock Detection" width="100%" />
+  <img src="docs/06-ai-diagnosis-price-shock-detection.png" alt="AI Diagnosis — Price Shock Detection" width="100%" />
+</div>
+
+### 7. AI Diagnosis — Shipping Surprise Detection
+*(AI-generated forensic diagnosis for shipping-related abandonment)*
+<div align="center">
+  <img src="docs/07-ai-diagnosis-shipping-surprise-detection.png" alt="AI Diagnosis — Shipping Surprise Detection" width="100%" />
 </div>
 
 ### 8. AI Diagnosis — Variant Confusion Detection
