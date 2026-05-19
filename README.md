@@ -34,6 +34,10 @@
 
 > Cloud deployment includes uptime monitoring to maintain stable public accessibility during demonstrations and evaluations.
 
+### 🎥 Demo Video: [Link to Video Here]
+
+**CartCoroner analyzes REAL Shopify storefront behavioral telemetry to detect why users abandon carts — then diagnoses the exact friction type causing abandonment using Groq AI reasoning.**
+
 ---
 
 ## 🛑 The Problem: Traditional Analytics Are Blind
@@ -310,6 +314,8 @@ SHOPIFY_WEBHOOK_SECRET=your_webhook_secret
 ## 👥 Team
 
 Built for the **Kasparro Agentic Commerce Hackathon 2026**.
+
+**Contribution Note:** This is a solo submission. All frontend, backend, telemetry tracking, and AI integration was developed entirely by a single developer within the hackathon timeframe.
 
 ## 📄 License
 
