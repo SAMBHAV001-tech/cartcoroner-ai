@@ -4,347 +4,91 @@
 
 ---
 
-## Architecture Overview
+## 1. System Architecture
 
-CartCoroner is a four-layer distributed system:
+CartCoroner is a distributed, event-driven system composed of four main layers:
 
-```
-Shopify Storefront  (theme.liquid — vanilla JS tracker)
-        │  behavioral events (HTTP POST, keepalive)
+```text
+1. Shopify Storefront  (theme.liquid — vanilla JS tracker)
+        │  async behavioral events (fetch with keepalive: true)
         ▼
-FastAPI Backend  (Python 3.11 — Hugging Face Spaces, Docker)
-        │  persist events       │  AI inference
+2. FastAPI Backend  (Python 3.11 — Hugging Face Spaces, Docker)
+        │  persist raw events   │  inference requests
         ▼                       ▼
-Supabase PostgreSQL         Groq API
-(session_events, diagnoses,  (LLaMA 3.3 70B Versatile)
- abandoned_carts)
+3. Supabase PostgreSQL      4. Groq API
+(session_events, diagnoses)  (LLaMA 3.3 70B Versatile)
         │
         ▼
-Next.js Dashboard  (Vercel — Edge CDN)
+5. Next.js Dashboard  (Vercel — Edge CDN)
+        (Fetches materialized insights from backend via REST)
 ```
 
-Each layer has a single responsibility. The Shopify tracker only captures and forwards. The FastAPI backend owns all business logic. Supabase is the system of record. The dashboard is read-only — it fetches and visualizes.
+**Data Flow:**
+1. The JS tracker on Shopify captures DOM events and sends them to the FastAPI backend.
+2. The backend immediately writes raw events to Supabase (`session_events` table).
+3. Upon a `session_abandoned` event (triggered via `beforeunload` or inactivity), the backend retrieves the session's full event history.
+4. The backend formats this timeline into a prompt context and queries the Groq API.
+5. The LLM returns a structured JSON diagnosis, which is persisted in the `diagnoses` table.
+6. The Vercel-hosted frontend polls the backend to display the live feed and session replays.
 
 ---
 
-## Telemetry Pipeline
+## 2. Key Implementation Decisions
 
-### Tracker Initialization
-
-The tracker snippet (`scripts/cartcoroner-tracker.liquid`) initializes once per page load via an IIFE with a guard flag (`window.CartCoronerTracker`). On first run, it generates or retrieves a persistent session ID from `localStorage`:
-
-```js
-sid = 'cc_session_' + Math.random().toString(36).substring(2, 15) + ...
-localStorage.setItem('cc_session_id', sid);
-```
-
-The session ID survives page-to-page navigation within the same browser session. It resets only when `localStorage` is cleared.
-
-### Event Capture
-
-Five event modules initialize on `DOMContentLoaded`:
-
-**`trackVariantChanges()`** — Listens to `change` events on form elements matching Shopify variant selector heuristics (`name="id"`, `name="options"`, `.single-option-selector`). Also handles swatch-based selectors via click detection with a 50ms DOM-settle delay.
-
-**`trackShippingView()`** — Uses `mouseover`/`mouseout` listeners on elements matching `[id*="shipping"]` or `[class*="shipping"]` CSS selectors. Records dwell time. Fires `shipping_section_viewed` only when dwell exceeds 500ms — filters out accidental hover.
-
-**`trackCheckoutStep()`** — Inspects `window.location.pathname` and Shopify's `.step[data-step]` DOM markers to identify the current checkout stage (`cart`, `checkout_information`, `shipping`, `payment`). Persists last step to `localStorage`.
-
-**`trackPageRevisit()`** — Uses `performance.getEntriesByType('navigation')` to detect `back_forward` navigation type. Cross-references with last-known page from `localStorage`.
-
-**`setupAbandonmentTracking()`** — Attaches a `beforeunload` listener. Also implements an inactivity timeout (default: 5 minutes) that fires `session_abandoned` with `reason: 'inactivity'`. Inactivity timer resets on any of: `mousedown`, `mousemove`, `keydown`, `scroll`, `touchstart`.
-
-### Event Transmission
-
-All events are sent as `POST` requests to `POST /session/event`:
-
-```json
-{
-  "session_id": "cc_session_abc123",
-  "event_type": "variant_changed",
-  "timestamp": "2026-05-19T07:30:00.000Z",
-  "page_url": "https://store.myshopify.com/products/t-shirt",
-  "cart_value": 1499.0,
-  "metadata": { "from_variant": "S", "to_variant": "M", "product_id": "7891234" }
-}
-```
-
-The abandonment event uses `keepalive: true` to ensure delivery even when the browser is closing the tab.
+- **Custom `SupabaseHTTP` Client:** We bypassed the official `supabase-py` SDK and built a lightweight REST client using `httpx`. The official SDK crashed when handling modern `sb_publishable_*` keys required by newer Supabase projects. The custom client ensures deployment stability on Hugging Face Spaces.
+- **`keepalive: true` for Event Transmission:** Standard `fetch` requests are often cancelled by the browser during a tab close or navigation. We use the `keepalive` flag on the final `session_abandoned` payload to ensure the browser finishes transmitting the data in the background.
+- **SHA-256 Diagnosis Caching:** We hash identical cart patterns (value bucket + categories + drop-off step) and cache the LLM response for 24 hours. This drastically reduces Groq API calls for common abandonment scenarios, preserving quota for complex, session-specific behavioral trajectories.
 
 ---
 
-## Frontend Architecture
+## 3. The Boundary: AI vs. Deterministic Code
 
-**Framework:** Next.js (App Router, TypeScript)  
-**Styling:** Tailwind CSS v4 + custom CSS design system in `globals.css`  
-**Charts:** Recharts  
-**Icons:** Lucide React  
-**Deployment:** Vercel
+Where do we draw the line between standard code and Large Language Models?
 
-### Component Structure
+**Deterministic Code Handles:**
+- Event capture, filtering (e.g., ignoring hovers < 500ms), and state persistence.
+- Aggregating session timelines and calculating derived metrics (e.g., total duration, max cart value, variant switch counts).
+- Routing, database caching, and cache invalidation.
+- **Fallback logic:** If a cart's behavior is trivial (e.g., immediate bounce), deterministic code handles it to save LLM costs.
 
-```
-frontend/
-├── app/
-│   ├── page.tsx              # Root dashboard (server component)
-│   ├── layout.tsx            # Root layout + metadata
-│   └── globals.css           # Design system tokens + animations
-├── components/dashboard/
-│   ├── header.tsx            # Nav bar + live status indicator
-│   ├── metric-cards.tsx      # KPI summary cards
-│   ├── live-diagnosis-feed.tsx   # Real-time AI diagnosis list (client)
-│   ├── live-session-monitor.tsx  # Session replay timeline (client)
-│   ├── insights-panel.tsx    # Right sidebar AI insights
-│   ├── charts.tsx            # Recharts visualizations
-│   └── footer.tsx
-├── lib/
-│   └── mock-data.ts          # Fallback display data
-└── hooks/                    # Custom React hooks
-```
+**AI/LLM Handles:**
+- **Pattern Recognition & Nuance:** The LLM receives the derived metrics and the raw timeline. It is responsible for contextual reasoning. E.g., Did the user switch variants 5 times because they were confused, or were they just browsing quickly? The LLM looks at time-between-actions to make this judgment.
+- **Actionable Fix Generation:** Synthesizing the specific context into a human-readable recommendation for the merchant.
 
-### Data Flow
-
-`page.tsx` is a server component — it renders the shell with mock data immediately. `LiveDiagnosisFeed` and `LiveSessionMonitor` are client components that fetch live data from the FastAPI backend on mount via `useEffect`. This pattern ensures a fast initial render (no loading state on SSR) while live data hydrates asynchronously.
-
-The dashboard contacts these backend endpoints:
-- `GET /session/latest` — fetch most recent session ID
-- `GET /session/{id}/events` — load event timeline for session replay
-- `POST /session/{id}/diagnose` — trigger AI diagnosis on the session
-- `GET /diagnoses` — load the last 50 diagnoses for the feed
-- `POST /diagnose` — run a demo diagnosis from a scenario button
+*Why this boundary?* LLMs are too slow and expensive for event routing or basic aggregation. We use deterministic code to compress the data into a high-signal prompt, and only use the LLM where its fuzzy logic and reasoning capabilities are strictly necessary.
 
 ---
 
-## Backend Architecture
+## 4. Failure Handling & Degradation
 
-**Framework:** FastAPI (Python 3.11)  
-**Server:** Uvicorn  
-**AI Client:** OpenAI SDK pointed at Groq's API endpoint  
-**DB Client:** Custom `SupabaseHTTP` class over `httpx`  
-**Deployment:** Docker on Hugging Face Spaces (port 7860)
+What happens when things break? We designed the system to degrade gracefully.
 
-### Request Handling
+**1. Shopify Storefront / Tracker Network Failure**
+- If the backend is unreachable from the client, `fetch` calls fail silently in the background. The `catch` block prevents JavaScript errors from leaking into the merchant's storefront, ensuring the shopping experience is never impacted by telemetry failures.
 
-FastAPI routes are defined in `main.py`. All routes are async. CORS is open (`allow_origins=["*"]`) to permit calls from Vercel and Shopify storefront origins.
+**2. Groq API Down / Rate Limited**
+- If the LLM call times out or returns a 5xx error, the backend catches the exception and routes the payload to `fallback_diagnosis()`. 
+- This deterministic function uses hardcoded heuristics (e.g., if step == "shipping", return `SHIPPING_SURPRISE`; if step == "payment" and value > 3000, return `PRICE_SHOCK`). 
+- The system continues to populate the dashboard with insights, albeit with lower nuance.
 
-### Diagnosis Logic
+**3. LLM Returns Malformed JSON / Hallucinates Categories**
+- We force `response_format: {"type": "json_object"}` on the Groq call.
+- If the parsed JSON is missing fields or hallucinated an invalid `root_cause` outside our predefined enums, the backend parser validates it against a strict whitelist. If it fails validation, it reverts to the deterministic fallback.
 
-`get_diagnosis_logic()` is the core function:
-
-1. Compute a SHA-256 cache key from `(cart_value_bucket, sorted_categories, abandonment_step)`
-2. Query `diagnoses` table for a matching cache entry within the last 24 hours
-3. If cache hit: return cached result — no Groq call
-4. If cache miss: construct structured prompt and call Groq with `response_format: json_object`
-5. On Groq failure: call `fallback_diagnosis()` (deterministic heuristics)
-
-Session-based diagnosis (`/session/{id}/diagnose`) derives signals from raw events before calling Groq:
-- `variant_changed_count` — number of variant switches
-- `page_revisit_count` — number of back-navigations
-- `has_shipping_viewed` — boolean
-- `last_active_step` — final checkout stage reached
-- `total_duration_seconds` — session length
-- `max_cart_value` — peak cart value across all events
-
-These signals form the Groq prompt context alongside the full event timeline.
-
-### System Prompt (Diagnosis)
-
-```
-You are CartCoroner AI, a behavioral revenue intelligence engine for Shopify merchants.
-Diagnose abandoned carts and classify into ONE root cause:
-1. PRICE_SHOCK — high cart value, payment-step drop-off, budget hesitation
-2. SHIPPING_SURPRISE — abandonment at shipping step, unexpected delivery costs
-3. TRUST_GAP — high value purchase, hesitation about safety/trust
-4. VARIANT_CONFUSION — fashion products, repeated size/variant toggling
-5. JUST_BROWSING — low value, short session, weak purchase intent
-
-Return ONLY valid JSON:
-{"root_cause": "...", "confidence": float, "evidence": [string, string, string], "fix": string, "impact_inr": integer}
-```
-
-Temperature is set to `0.1` for consistent, reproducible classification.
+**4. Supabase DB Unreachable**
+- The FastAPI backend returns 500s for read queries, and the Next.js frontend displays empty states for charts rather than crashing. 
+- Ingestion events are dropped.
 
 ---
 
-## Supabase Schema
+## 5. Known Limitations & Future Improvements
 
-### `abandoned_carts`
-Stores structured cart data from Shopify webhook payloads.
+**Current Limitations:**
+- **Session Stitching:** The current tracker uses `localStorage` for session IDs, meaning cross-device tracking (user starts on mobile, finishes on desktop) is impossible. 
+- **In-Memory Cache:** The current caching layer relies on Supabase. Under extreme load, a dedicated Redis layer would be required for the cache fingerprinting.
+- **DOM Brittleness:** The tracker relies on specific Shopify CSS selectors (`name="id"`, `.step[data-step]`) which might break on highly customized headless Shopify themes.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK, auto-generated |
-| `cart_value` | FLOAT | Total cart value |
-| `product_categories` | JSONB | Product category list |
-| `customer_email` | TEXT | Nullable |
-| `abandonment_step` | TEXT | `cart` / `shipping` / `payment` |
-| `created_at` | TIMESTAMPTZ | Default: now() |
-
-### `session_events`
-Stores real-time behavioral events from the Shopify tracker.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `session_id` | TEXT | `localStorage` session key |
-| `event_type` | TEXT | One of 5 event types |
-| `metadata` | JSONB | Event-specific payload |
-| `page_url` | TEXT | URL at time of event |
-| `cart_value` | DECIMAL | Cart value at event time |
-| `timestamp` | TIMESTAMPTZ | Client-side ISO timestamp |
-
-**Indexes:** `idx_session_events_session_id` (for per-session fetches), `idx_session_events_created_at_desc` (for latest session lookup).
-
-### `diagnoses`
-Stores all AI diagnosis outputs, from both webhook and session paths.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `cart_id` | UUID | FK → `abandoned_carts` (nullable) |
-| `session_id` | TEXT | For session-path diagnoses |
-| `cache_key` | TEXT | SHA-256 fingerprint |
-| `root_cause` | TEXT | One of 5 root cause codes |
-| `confidence` | FLOAT | 0.55–0.95 |
-| `evidence` | JSONB | Array of 3 evidence strings |
-| `fix` | TEXT | Actionable recommendation |
-| `impact_inr` | INT | Revenue recovery estimate |
-| `source` | TEXT | `webhook` or `real_session` |
-
-**Index:** `idx_diagnoses_cache_key` (for 24-hour cache lookup).
-
-### `get_patterns()` RPC
-
-A PostgreSQL function that returns aggregate analytics in a single query:
-- `root_cause_stats` — count + avg impact per root cause
-- `cart_value_stats` — session count per value bucket (`0-1000`, `1000-3000`, etc.)
-- `abandonment_step_stats` — session count per funnel stage
-
----
-
-## AI Diagnosis Flow
-
-```
-Client: POST /session/{id}/diagnose
-        │
-        ▼
-Fetch all events for session_id from session_events
-        │
-        ▼
-Derive signals:
-  - variant_changed_count
-  - page_revisit_count
-  - has_shipping_viewed
-  - last_active_step
-  - total_duration_seconds
-  - max_cart_value
-        │
-        ├──► Groq available?
-        │         │ YES
-        │         ▼
-        │    Build context string + event timeline
-        │    POST https://api.groq.com/openai/v1/chat/completions
-        │    model: llama-3.3-70b-versatile
-        │    max_tokens: 400, temperature: 0.1
-        │    response_format: json_object
-        │         │
-        │         ▼
-        │    Parse JSON → root_cause, confidence, evidence, fix, impact_inr
-        │
-        └──► Groq unavailable? → fallback_diagnosis() heuristics
-                │
-                ▼
-        INSERT into diagnoses (source: 'real_session')
-                │
-                ▼
-        Return DiagnosisRealResponse to client
-```
-
----
-
-## Deployment Architecture
-
-### Frontend — Vercel
-
-- Next.js builds are deployed automatically on `git push` to `main`
-- Vercel Edge CDN distributes the static shell globally
-- Environment variable `NEXT_PUBLIC_API_URL` points to the HF Spaces backend URL
-
-### Backend — Hugging Face Spaces
-
-- Docker container built from `backend/Dockerfile` (Python 3.11 slim)
-- Container starts Uvicorn on port 7860 (HF Spaces standard)
-- Environment secrets (`GROQ_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`) set in HF Spaces settings
-- No cold-start penalty on the HF free tier for persistent Docker spaces
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-EXPOSE 7860
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
-```
-
-### Database — Supabase
-
-- Managed PostgreSQL instance on Supabase Cloud
-- Schema provisioned via `backend/schema.sql`
-- Accessed via direct REST API (PostgREST) — no connection pooler required at current traffic
-
----
-
-## API Overview
-
-Full interactive docs: [samd444-cartcoroner-backend.hf.space/docs](https://samd444-cartcoroner-backend.hf.space/docs)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Service status + Supabase/Groq connectivity |
-| `POST` | `/diagnose` | AI diagnosis from structured cart payload |
-| `POST` | `/recovery` | Generate personalized recovery message from diagnosis |
-| `GET` | `/diagnoses` | Latest 50 diagnoses with cart data joined |
-| `GET` | `/patterns` | Aggregated behavioral analytics (via RPC) |
-| `POST` | `/webhook/shopify` | Shopify abandonment webhook (HMAC-verified) |
-| `POST` | `/session/event` | Ingest real-time storefront telemetry event |
-| `GET` | `/session/latest` | Most recent active session ID |
-| `GET` | `/session/{id}/events` | Full event timeline for a session |
-| `POST` | `/session/{id}/diagnose` | AI forensic diagnosis from real session telemetry |
-
-### Authentication
-
-The Shopify webhook endpoint (`/webhook/shopify`) validates the `X-Shopify-Hmac-Sha256` header using HMAC-SHA256 against `SHOPIFY_WEBHOOK_SECRET`. All other endpoints are public (appropriate for a demo/hackathon context; production would add API key auth).
-
----
-
-## Real-Time Session Replay
-
-The `LiveSessionMonitor` component:
-
-1. On mount, calls `GET /session/latest` to retrieve the most recent `session_id`
-2. Calls `GET /session/{id}/events` to fetch the full event timeline
-3. Renders events as a chronological timeline sorted by `timestamp`
-4. Displays event type, metadata, page URL, and cart value at each step
-5. User can trigger `POST /session/{id}/diagnose` from the UI to run an AI autopsy on the displayed session
-
-This gives merchants a lightweight session replay without video recording. The behavioral sequence (what the shopper did and in what order) is sufficient for root-cause diagnosis.
-
----
-
-## Scalability Considerations
-
-**Current state:** Suitable for small-to-medium Shopify stores (hundreds of sessions/day). Supabase free tier handles this comfortably.
-
-**Bottlenecks at scale:**
-
-| Layer | Bottleneck | Migration Path |
-|-------|-----------|---------------|
-| Backend | Single Uvicorn process on HF Spaces | Railway/Fly.io with Gunicorn multi-worker + autoscaling |
-| Database | Supabase free tier row limits | Supabase Pro or self-hosted PostgreSQL on RDS |
-| AI Inference | Groq rate limits at high concurrency | Groq paid plan; add request queuing with Celery/Redis |
-| Telemetry ingestion | Synchronous DB writes per event | Batch write via Redis queue → periodic flush |
-
-**Caching effectiveness:** The SHA-256 cache key reduces Groq calls significantly for stores with repeated cart patterns. Real-session diagnoses (`/session/{id}/diagnose`) bypass the cache by design — each session's telemetry is unique.
-
-**Frontend performance:** The Next.js shell renders immediately from server with mock data. Live data hydrates asynchronously. No blocking API calls on the critical render path.
+**What We Would Improve With More Time:**
+1. **Queueing System:** Currently, webhook and event processing are handled synchronously or via basic FastAPI background tasks. We would implement Celery + Redis to queue LLM inferences and handle rate limiting properly.
+2. **Predictive Scoring:** We would train a lightweight deterministic model to assign an "abandonment probability score" in real-time as events stream in, triggering on-page interventions *before* the user closes the tab.
+3. **Mutation Observers:** Upgrade the JS tracker to use `MutationObserver` to more robustly detect checkout state changes on single-page-application (SPA) storefronts without relying on URL paths.

@@ -4,99 +4,71 @@
 
 ---
 
-## Executive Summary
-
-CartCoroner is an AI-powered behavioral forensic platform that diagnoses why shoppers abandon carts on Shopify storefronts. It captures real storefront micro-interactions, stores them as timestamped behavioral telemetry, and uses Groq's LLaMA 3.3 70B to perform session autopsies — delivering root-cause diagnoses and targeted recovery recommendations to merchants.
-
-The core insight: **abandonment is a symptom. The friction that caused it is the problem.** CartCoroner surfaces the friction.
-
----
-
-## Problem Statement
+## 1. The Problem and Why It Matters
 
 Cart abandonment costs global e-commerce ~$4 trillion annually. Shopify merchants typically respond with blast discount emails — 10% off, sent to everyone, regardless of why they actually left.
 
-This fails because abandonment is not a single problem. A shopper who left because shipping was ₹299 on a ₹500 order has a different problem than one who toggled between size S and M eleven times before closing the tab. Existing tools (Klaviyo, Omnisend, Shopify's native recovery) tell you *that* a cart was abandoned. They don't tell you *why* it happened at the behavioral level.
+This fails because abandonment is a symptom, not a singular problem. A shopper who left because shipping was ₹299 on a ₹500 order has a different problem than one who toggled between size S and M eleven times before closing the tab. Sending a discount to someone who left due to trust concerns is noise, not intelligence, and actively erodes margin. 
+
+Existing tools (Klaviyo, Omnisend, Shopify's native recovery) tell merchants *that* a cart was abandoned. They don't tell them *why* it happened at the behavioral level.
 
 ---
 
-## Why Cart Abandonment Matters
+## 2. Target User & Current Experience
 
-- **Average abandonment rate:** 70%+ across e-commerce globally
-- **Recoverable revenue:** 5–15% of abandoned carts are recoverable with the right intervention
-- **The intervention problem:** The wrong message to the wrong shopper actively reduces recovery rates — a discount sent to someone who left due to trust concerns is noise, not intelligence
-- **Merchant gap:** Most Shopify merchants under $1M GMR have no behavioral analytics beyond basic funnel reports
+**Primary User:** Shopify merchants with 500–10,000 monthly sessions running active email or WhatsApp recovery campaigns. 
+**Secondary User:** CRO (Conversion Rate Optimization) agencies managing multiple Shopify stores.
 
----
-
-## Target Users
-
-**Primary:** Shopify merchants with 500–10,000 monthly sessions running active email or WhatsApp recovery campaigns who want to stop guessing why carts are being abandoned.
-
-**Secondary:** CRO agencies managing multiple Shopify stores who need session-level behavioral evidence to justify optimization recommendations.
+**Current Painful Experience:**
+Right now, a merchant logs into Shopify or Google Analytics and sees a funnel report: "45% drop-off at shipping step." To figure out *why*, they have to:
+1. Watch hours of unstructured Hotjar session recordings, hoping to stumble upon the exact sessions that abandoned.
+2. Guess the cause (e.g., "Maybe our shipping is too high?") and implement a blind fix.
+3. Send generic "Come back for 10% off!" emails, cheapening their brand to customers who might have bought at full price if their specific friction point was addressed.
 
 ---
 
-## Core Features
+## 3. What We Built & Core User Journey
 
-### 1. Real-Time Behavioral Telemetry
+We built a system that captures real-time behavioral micro-interactions (variant toggles, shipping dwell times, back-navigations) and uses Groq's LLaMA 3.3 70B to perform an AI forensic autopsy on the session when it abandons.
 
-A lightweight JavaScript snippet injected into Shopify's `theme.liquid` captures five categories of behavioral events from real shopper sessions:
-
-| Event | What It Signals |
-|-------|----------------|
-| `variant_changed` | Decision paralysis — can't commit to size or color |
-| `checkout_step_reached` | Exact funnel position at abandonment |
-| `shipping_section_viewed` | Delivery cost concern — dwell time on shipping fields |
-| `page_revisit` | Hesitation — the shopper left and came back |
-| `session_abandoned` | Tab close or inactivity, with last-known context |
-
-Events fire asynchronously with `keepalive: true` — ensuring the abandonment event reaches the backend even as the browser terminates the page.
-
-### 2. AI Forensic Diagnosis
-
-The behavioral event timeline is submitted to Groq's LLaMA 3.3 70B with a forensic prompt. The AI returns:
-
-- **Root cause classification** — one of five evidence-based categories
-- **Confidence score** — 0.55 to 0.95
-- **Evidence observations** — 3 specific behavioral facts from the session
-- **Recovery fix** — one actionable merchant recommendation
-- **Revenue impact estimate** — projected recovery value in INR
-
-### 3. Root Cause Classification
-
-| Code | Merchant Label | Trigger Pattern |
-|------|---------------|----------------|
-| `PRICE_SHOCK` | Budget Resistance | High cart value, payment-step drop-off |
-| `SHIPPING_SURPRISE` | Delivery Friction | Abandonment at shipping, delivery field interaction |
-| `TRUST_GAP` | Confidence Breakdown | Review/return-policy interactions before exit |
-| `VARIANT_CONFUSION` | Decision Paralysis | 3+ variant toggle events before abandonment |
-| `JUST_BROWSING` | Low Purchase Intent | Short session, low value, early exit |
-
-### 4. Live Session Replay
-
-The dashboard renders a chronological timeline of every behavioral event in the most recent session. Merchants see the exact sequence: product view → variant toggle → cart add → shipping view → abandonment. No screen recording tool required for intent diagnosis.
-
-### 5. Behavioral Revenue Analytics
-
-Dashboard aggregates diagnoses into root cause distribution, abandonment trends over time, and weekly revenue recovery opportunity by category.
+**The Core User Journey:**
+1. **The Shopper:** Browses the store, toggles variants, checks shipping, and abandons.
+2. **The Tracker:** Silently records this timeline and fires a final payload to our backend upon tab close.
+3. **The AI:** Analyzes the behavioral timeline, diagnosing a root cause (e.g., `SHIPPING_SURPRISE` or `VARIANT_CONFUSION`).
+4. **The Merchant:** Opens the CartCoroner dashboard, sees the live feed of diagnosed abandonments, reviews the exact session replay timeline, and implements the AI-recommended structural fix (or personalized recovery message).
 
 ---
 
-## Business Impact
+## 4. Key Product Decisions & Reasoning
 
-For a merchant with ₹50L/month in cart abandonment, identifying that 40% of abandonment is `SHIPPING_SURPRISE` shifts the intervention from blanket discounts to testing a free shipping threshold — a structural fix with lasting ROI.
+**Decision: Tracking micro-behaviors natively instead of relying on Shopify Webhooks.**
+*Reasoning:* Webhooks only trigger on major state changes (cart updated, checkout started). They miss the nuances of hesitation—like a user switching back and forth between two sizes 5 times before leaving. True intent diagnosis requires micro-interaction data.
 
-**The precision difference:**
-- Generic recovery blast → 3–5% recovery rate
-- Root-cause targeted recovery → documented 2–3× improvement in industry studies
+**Decision: Five specific root-cause categories.**
+*Reasoning:* We constrained the AI to classify abandonments into five actionable buckets (`PRICE_SHOCK`, `SHIPPING_SURPRISE`, `TRUST_GAP`, `VARIANT_CONFUSION`, `JUST_BROWSING`) rather than generating free-text summaries. Merchants need quantifiable categories to prioritize structural fixes, not paragraphs of text.
+
+**Decision: Using Groq LLaMA 3.3 70B.**
+*Reasoning:* We needed a model capable of deep reasoning on temporal event data, but it had to be fast enough to populate a live dashboard. Groq provides near-instant inference, allowing the intelligence feed to update in real-time.
 
 ---
 
-## Future Scope
+## 5. What We Chose NOT to Build (Scope Decisions)
 
-- **Predictive Abandonment Scoring** — Score sessions in real-time and trigger on-page interventions before the shopper leaves
-- **Automated Recovery Dispatch** — Direct integration with Klaviyo and WhatsApp Business for autonomous root-cause-matched messaging
-- **A/B Test Generation** — AI-generated recovery copy variants routed into Klaviyo A/B campaigns, with outcome tracking back into CartCoroner
-- **Multi-Store Aggregation** — Aggregate behavioral patterns across a Shopify store portfolio for agency use
-- **Spatial Heatmap Overlay** — Combine click/scroll spatial data with session event timelines for full-context friction identification
+- **NOT BUILT: Automated Email/WhatsApp Dispatch.** 
+  *Why:* We scoped this out for v1 to focus purely on the intelligence and diagnosis engine. Automatically sending messages requires complex state management (opt-ins, throttling, ESP integrations) which distracts from the core forensic value proposition.
+- **NOT BUILT: Screen Recording (Video).** 
+  *Why:* Tools like Hotjar record pixels, which are heavy and hard to parse programmatically. We chose to capture *semantic events* (a timeline of actions) which is lightweight, privacy-friendly, and machine-readable for our LLM.
+- **NOT BUILT: Full Analytics Suite.**
+  *Why:* We are not replacing Google Analytics. We are a surgical tool for cart abandonment diagnostics only.
+
+---
+
+## 6. Tradeoffs Encountered & Resolution
+
+**Tradeoff: Tracker performance vs. Data richness.**
+Capturing every single mouse movement would provide the richest data for the AI but would bloat the payload and potentially slow down the Shopify storefront. 
+*Resolution:* We compromised by tracking high-signal events only: variant changes, checkout step transitions, page revisits, and shipping-field hover dwells > 500ms.
+
+**Tradeoff: Deterministic vs. AI execution.**
+We wanted the AI to feel magical, but relying on it for everything is expensive and slow.
+*Resolution:* We built a hybrid system. If a cart fits obvious deterministic heuristics (e.g., cart value < ₹500, time on site < 10s), we can classify it as `JUST_BROWSING` without an AI call. We reserve the heavy LLM inference for ambiguous, high-value sessions where nuanced behavioral reasoning is required.
