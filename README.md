@@ -34,7 +34,7 @@
 
 > Cloud deployment includes uptime monitoring to maintain stable public accessibility during demonstrations and evaluations.
 
-### 🎥 Demo Video: [Link to Video Here]
+### 🎥 Demo Video: [CartCoroner AI Walkthrough](https://drive.google.com/file/d/1hEm1d0tIuzlF0udNsWPKFN8mEW4PUc0b/view?usp=drive_link)
 
 **CartCoroner analyzes REAL Shopify storefront behavioral telemetry to detect why users abandon carts — then diagnoses the exact friction type causing abandonment using Groq AI reasoning.**
 
