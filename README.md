@@ -315,7 +315,7 @@ SHOPIFY_WEBHOOK_SECRET=your_webhook_secret
 
 Built for the **Kasparro Agentic Commerce Hackathon 2026**.
 
-**Contribution Note:** This is a solo submission. All frontend, backend, telemetry tracking, and AI integration was developed entirely by a single developer within the hackathon timeframe.
+**Contribution Note:** Solo submission. Time split: approximately 35% on product thinking and documentation (problem framing, decision log, architecture design), 45% on engineering (Shopify telemetry tracker, FastAPI backend, Groq AI integration, Next.js dashboard), and 20% on testing, demo preparation, and deployment. All code, documentation, architecture decisions, and design were done independently within the hackathon timeframe.
 
 ## 📄 License
 
